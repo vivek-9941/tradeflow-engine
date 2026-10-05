@@ -1,0 +1,97 @@
+syntax = "proto3";
+
+package trade.matching;
+
+option java_multiple_files = true;
+option java_package = "org.vivek.trade.matching.grpc";
+option java_outer_classname = "MatchingProto";
+
+import "google/protobuf/timestamp.proto";
+
+service MatchingEngine {
+  rpc SubmitOrder(SubmitOrderRequest) returns (SubmitOrderResponse);
+  rpc CancelOrder(CancelOrderRequest) returns (CancelOrderResponse);
+  rpc GetDepth(DepthRequest)          returns (DepthResponse);
+}
+
+enum Side {
+  BUY = 0;
+  SELL = 1;
+}
+
+enum OrderType {
+  LIMIT = 0;
+  MARKET = 1;
+  IOC = 2;
+  FOK = 3;
+}
+
+enum OrderStatus {
+  PENDING = 0;
+  PARTIALLY_FILLED = 1;
+  FULLY_FILLED = 2;
+  CANCELLED = 3;
+  REJECTED = 4;
+}
+
+message SubmitOrderRequest {
+  string order_id = 1;
+  string user_id = 2;
+  string symbol = 3;
+  Side side = 4;
+  OrderType order_type = 5;
+  int64 price_paise = 6;
+  int64 quantity = 7;
+  oneof timestamp_oneof {
+    google.protobuf.Timestamp timestamp = 8;
+    int64 client_ts = 9;
+  }
+}
+
+message Fill {
+  int64 price_paise = 1;
+  int64 quantity = 2;
+  string match_id = 3;
+}
+
+message SubmitOrderResponse {
+  OrderStatus status = 1;
+  int64 filled_qty = 2;
+  int64 remaining_qty = 3;
+  int32 fill_count = 4;
+  repeated Fill fills = 5;
+  bool fills_truncated = 6;
+  bool remainder_cancelled = 7;
+  bool duplicate = 8;
+  string reject_reason = 9;
+}
+
+message CancelOrderRequest {
+  string order_id = 1;
+  string user_id = 2;
+  string symbol = 3;
+}
+
+message CancelOrderResponse {
+  bool cancelled = 1;
+}
+
+message DepthRequest {
+  string symbol = 1;
+}
+
+message PriceLevel {
+  int64 price_paise = 1;
+  int64 quantity = 2;
+  int32 order_count = 3;
+}
+
+message DepthResponse {
+  string symbol = 1;
+  repeated PriceLevel bids = 2;
+  repeated PriceLevel asks = 3;
+  int64 best_bid = 4;
+  int64 best_ask = 5;
+  int64 spread = 6;
+  int64 mid_price = 7;
+}

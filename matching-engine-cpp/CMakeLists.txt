@@ -35,12 +35,42 @@ endif()
 # vcpkg is wired via CMAKE_TOOLCHAIN_FILE in CMakePresets.json
 find_package(GTest CONFIG REQUIRED)
 find_package(benchmark CONFIG REQUIRED)
+find_package(Protobuf CONFIG REQUIRED)
+find_package(gRPC CONFIG REQUIRED)
+
+# ── Proto Generation ─────────────────────────────────────────────────────────
+set(PROTO_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../proto")
+set(PROTO_FILE "${PROTO_SRC_DIR}/matching.proto")
+set(PROTO_OUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
+file(MAKE_DIRECTORY ${PROTO_OUT_DIR})
+
+add_custom_command(
+    OUTPUT "${PROTO_OUT_DIR}/matching.pb.cc"
+           "${PROTO_OUT_DIR}/matching.pb.h"
+           "${PROTO_OUT_DIR}/matching.grpc.pb.cc"
+           "${PROTO_OUT_DIR}/matching.grpc.pb.h"
+    COMMAND protobuf::protoc
+    ARGS --proto_path="${PROTO_SRC_DIR}"
+         --cpp_out="${PROTO_OUT_DIR}"
+         --grpc_out="${PROTO_OUT_DIR}"
+         --plugin=protoc-gen-grpc=$<TARGET_FILE:gRPC::grpc_cpp_plugin>
+         "${PROTO_FILE}"
+    DEPENDS "${PROTO_FILE}"
+)
+
+add_library(engine_proto STATIC 
+    "${PROTO_OUT_DIR}/matching.pb.cc" 
+    "${PROTO_OUT_DIR}/matching.grpc.pb.cc"
+)
+target_include_directories(engine_proto PUBLIC "${PROTO_OUT_DIR}")
+target_link_libraries(engine_proto PUBLIC protobuf::libprotobuf gRPC::grpc++)
 
 # ── Source library ───────────────────────────────────────────────────────────
-add_library(engine_lib STATIC src/order_book.cpp src/shard.cpp)
+add_library(engine_lib STATIC src/order_book.cpp src/shard.cpp src/matching_service.cpp)
 target_include_directories(engine_lib PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+target_link_libraries(engine_lib PUBLIC engine_proto)
 
 # ── Main executable ─────────────────────────────────────────────────────────
 add_executable(matching_engine src/main.cpp)
@@ -48,8 +78,8 @@ target_link_libraries(matching_engine PRIVATE engine_lib)
 
 # ── Tests ────────────────────────────────────────────────────────────────────
 enable_testing()
-add_executable(engine_tests tests/smoke_test.cpp tests/runtime_test.cpp)
-target_link_libraries(engine_tests PRIVATE engine_lib GTest::gtest_main)
+add_executable(engine_tests tests/smoke_test.cpp tests/runtime_test.cpp tests/grpc_test.cpp)
+target_link_libraries(engine_tests PRIVATE engine_lib engine_proto GTest::gtest_main)
 include(GoogleTest)
 gtest_discover_tests(engine_tests)
 
