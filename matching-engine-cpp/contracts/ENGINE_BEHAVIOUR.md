@@ -230,3 +230,31 @@ On startup, `OrderBookRegistry.init()` seeds 10 synthetic SELL orders per symbol
 - User: `LP_BOOTSTRAP`
 - Order IDs: `LP-{SYMBOL}-{1..10}`
 - Quantities: 11, 12, 13, ..., 20
+
+---
+
+## Deliberate Differences (C++ vs Java)
+
+The C++ engine is designed for absolute minimum latency and predictability. The following deliberate deviations from the Java engine's behaviour have been implemented:
+
+1. **Integer Arithmetic**: 
+   - All prices and quantities are integer types (`int64_t`). Prices are represented in paise (1 INR = 100 paise), and quantities in whole shares.
+   - This removes floating-point inaccuracies and the need for `EPSILON` comparisons, eliminating the risk of sub-penny stranding.
+
+2. **Deterministic Trade IDs**:
+   - The Java engine uses `UUID.randomUUID()` to generate non-deterministic trade IDs. 
+   - The C++ engine uses deterministic IDs generated from the format `TRD-<shard>-<seq>`, making replays deterministic and enabling robust deduplication down the line.
+
+3. **Explicit Rejections**:
+   - The C++ engine will explicitly reject orders (without throwing exceptions) via a `REJECTED` status if:
+     - The price is outside the configured bands (e.g., +/- 30% from a reference price).
+     - The price does not align with the `tick_size_paise`.
+     - The quantity is `<= 0`.
+     - The symbol's active order capacity is exhausted (`REJECT_BOOK_FULL`), to prevent unbounded growth.
+
+4. **In-Engine Deduplication**:
+   - To handle idempotent retries from `order-service` without blowing up latency, the engine implements a zero-allocation, fixed-size deduplication window on the hot path. 
+   - If a duplicate `orderId` is submitted, it returns the final state (filled, remaining, status) of the previously processed instance. The Java engine had no matching-tier deduplication, relying purely on downstream DB constraints.
+
+5. **Self-Trade Prevention (STP)**:
+   - An optional Self-Trade Prevention flag can be passed in `NewOrderCmd`. If enabled, when an incoming order is about to match with a resting order owned by the *same* user, the resting order is cancelled instead. The Java engine did not have this feature.
