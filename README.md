@@ -9,6 +9,8 @@ correctness under concurrency — the core problem every real trading system sol
 
 ---
 
+![Architecture Design](Gemini_Generated_Image_y77j7wy77j7wy77j.png)
+
 ## Table of contents
 
 - [What this demonstrates](#what-this-demonstrates)
