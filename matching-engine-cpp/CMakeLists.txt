@@ -56,3 +56,10 @@ gtest_discover_tests(engine_tests)
 # ── Benchmarks ───────────────────────────────────────────────────────────────
 add_executable(engine_bench bench/smoke_bench.cpp)
 target_link_libraries(engine_bench PRIVATE engine_lib benchmark::benchmark_main)
+
+add_executable(workload_generator bench/workload_generator.cpp)
+target_link_libraries(workload_generator PRIVATE engine_lib)
+
+add_executable(latency_harness bench/latency_harness.cpp)
+target_link_libraries(latency_harness PRIVATE engine_lib hdrhistogram-c::hdrhistogram-c)
+
