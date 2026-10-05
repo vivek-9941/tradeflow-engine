@@ -353,4 +353,35 @@ bool OrderBook::Cancel(std::string_view order_id, uint64_t ts_ns, EventSink& sin
     return true;
 }
 
+OrderBook::DepthInfo OrderBook::GetDepth(size_t top_n) const {
+    DepthInfo depth;
+    depth.bids.reserve(top_n);
+    depth.asks.reserve(top_n);
+    
+    // Bids (descending from best bid)
+    // Note: HierarchicalBitmap doesn't have an easy iterator, so we can just check downwards from best_bid_idx
+    int32_t current_bid = buy_bitmap_.FindHighest();
+    while (current_bid >= 0 && depth.bids.size() < top_n) {
+        const PriceLevel& level = buy_levels_[current_bid];
+        if (level.order_count > 0) {
+            depth.bids.push_back({IndexToPrice(current_bid), level.total_qty, level.order_count});
+        }
+        // Move to next lower bit. In a real highly optimized engine, we'd build a FindNextHighest. 
+        // For now, linear scan down the bitmap limits is fine for snapshots (not the core hot path).
+        current_bid--;
+    }
+    
+    // Asks (ascending from best ask)
+    int32_t current_ask = sell_bitmap_.FindLowest();
+    while (current_ask >= 0 && current_ask < (int32_t)num_levels_ && depth.asks.size() < top_n) {
+        const PriceLevel& level = sell_levels_[current_ask];
+        if (level.order_count > 0) {
+            depth.asks.push_back({IndexToPrice(current_ask), level.total_qty, level.order_count});
+        }
+        current_ask++;
+    }
+    
+    return depth;
+}
+
 }  // namespace engine

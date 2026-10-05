@@ -1,10 +1,11 @@
-#include "engine/order_book.h"
+#include "engine/shard.h"
 #include <iostream>
 #include <fstream>
 #include <vector>
 #include <chrono>
 #include <thread>
 #include <hdr_histogram.h>
+#include <atomic>
 
 using namespace engine;
 
@@ -21,12 +22,6 @@ struct BinaryCmd {
     uint64_t seq;
 };
 #pragma pack(pop)
-
-class NullSink : public EventSink {
-public:
-    void OnTrade(const Fill&) override {}
-    void OnCancel(std::string_view, std::string_view, uint64_t, Qty) override {}
-};
 
 inline uint64_t get_time_ns() {
     auto now = std::chrono::high_resolution_clock::now();
@@ -51,23 +46,63 @@ int main(int argc, char** argv) {
     std::vector<BinaryCmd> cmds(num_cmds);
     in.read(reinterpret_cast<char*>(cmds.data()), size);
     
-    OrderBookConfig cfg{5, 100000, 0.30, 2000000, 1000000};
-    OrderBook book(cfg);
-    NullSink sink;
+    ShardConfig shard_cfg{0, WaitStrategy::HYBRID, -1, 256};
+    Shard shard(shard_cfg);
+    OrderBookConfig ob_cfg{5, 100000, 0.30, 2000000, 1000000};
+    shard.AddSymbol(0, ob_cfg);
+    
+    shard.Start();
     
     struct hdr_histogram* hist;
     hdr_init(1, 1000000000LL, 3, &hist); // 1ns to 1sec
 
-    // Warm-up: send first 10% cmds as fast as possible
+    std::vector<uint64_t> intended_times(num_cmds, 0);
+
+    // Reply Thread
+    std::atomic<size_t> replies_received{0};
+    std::atomic<bool> all_sent{false};
+    
     size_t warmup_count = num_cmds / 10;
+    
+    std::thread reply_thread([&]() {
+        RuntimeReply reply;
+        while (!all_sent.load() || replies_received.load() < num_cmds) {
+            if (shard.GetReplyRing().try_pop(reply)) {
+                size_t idx = reply.reply_handle;
+                if (idx >= warmup_count) {
+                    uint64_t end_time = get_time_ns();
+                    uint64_t latency = end_time - intended_times[idx];
+                    hdr_record_value(hist, latency);
+                }
+                replies_received++;
+            } else {
+                std::this_thread::yield();
+            }
+        }
+    });
+
+    // Warm-up: send first 10% cmds as fast as possible
     for (size_t i = 0; i < warmup_count; ++i) {
         auto& c = cmds[i];
-        if (c.is_cancel) {
-            book.Cancel(c.orderId, c.ts_ns, sink);
-        } else {
-            NewOrderCmd noc{1, c.orderId, c.userId, static_cast<Side>(c.side), static_cast<OrderType>(c.type), c.price, c.qty, c.ts_ns, c.seq, false};
-            book.Submit(noc, sink);
+        RuntimeCmd noc{};
+        noc.is_cancel = c.is_cancel;
+        noc.symbol_idx = 0;
+        std::memcpy(noc.order_id, c.orderId, 48);
+        std::memcpy(noc.user_id, c.userId, 32);
+        noc.side = static_cast<Side>(c.side);
+        noc.type = static_cast<OrderType>(c.type);
+        noc.price = c.price;
+        noc.qty = c.qty;
+        noc.reply_handle = i;
+        
+        while (!shard.TryEnqueueCmd(noc)) {
+            std::this_thread::yield();
         }
+    }
+
+    // Wait for warmup to finish processing
+    while (replies_received.load() < warmup_count) {
+        std::this_thread::yield();
     }
 
     // Measurement loop (Open Loop) - 100k cmds/sec -> 10us between intended send times
@@ -75,28 +110,33 @@ int main(int argc, char** argv) {
     uint64_t start_time = get_time_ns() + 1'000'000; // 1ms from now
 
     for (size_t i = warmup_count; i < num_cmds; ++i) {
-        uint64_t intended_time = start_time + (i - warmup_count) * rate_ns;
+        uint64_t intended = start_time + (i - warmup_count) * rate_ns;
+        intended_times[i] = intended;
         
-        // Spin wait
-        while (get_time_ns() < intended_time) {
-            // tight loop
-        }
+        // Spin wait to match intended send time
+        while (get_time_ns() < intended) {}
 
         auto& c = cmds[i];
+        RuntimeCmd noc{};
+        noc.is_cancel = c.is_cancel;
+        noc.symbol_idx = 0;
+        std::memcpy(noc.order_id, c.orderId, 48);
+        std::memcpy(noc.user_id, c.userId, 32);
+        noc.side = static_cast<Side>(c.side);
+        noc.type = static_cast<OrderType>(c.type);
+        noc.price = c.price;
+        noc.qty = c.qty;
+        noc.reply_handle = i;
         
-        if (c.is_cancel) {
-            book.Cancel(c.orderId, c.ts_ns, sink);
-        } else {
-            NewOrderCmd noc{1, c.orderId, c.userId, static_cast<Side>(c.side), static_cast<OrderType>(c.type), c.price, c.qty, c.ts_ns, c.seq, false};
-            book.Submit(noc, sink);
-        }
-        
-        uint64_t end_time = get_time_ns();
-        uint64_t latency = end_time - intended_time; // Includes coordinated omission
-        hdr_record_value(hist, latency);
+        // Measure enqueue time + full round trip (including backpressure waiting)
+        while (!shard.TryEnqueueCmd(noc)) {}
     }
+    
+    all_sent = true;
+    reply_thread.join();
+    shard.Stop();
 
-    std::cout << "Latency Harness Results (Open-loop, Intended send time):\n"
+    std::cout << "Latency Harness Results (Async Runtime, Intended send time):\n"
               << "P50 (ns): " << hdr_value_at_percentile(hist, 50.0) << "\n"
               << "P90 (ns): " << hdr_value_at_percentile(hist, 90.0) << "\n"
               << "P99 (ns): " << hdr_value_at_percentile(hist, 99.0) << "\n"
