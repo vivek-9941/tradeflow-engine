@@ -1,7 +1,10 @@
 info
-
 IDEMPOTENCY_AND_DESIGN_DECISIONS.md
 INTERVIEW_PITCH.md
 INTERVIEW_QUESTIONS_DETAILED.md
 LLD_PATTERNS.md
+practice/.gitignore
+practice/.idea/
+practice/practice.iml
+practice/src/Main.java
 practice/
