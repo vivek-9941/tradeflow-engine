@@ -1,0 +1,17 @@
+{
+    "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+    "name": "matching-engine-cpp",
+    "version-string": "0.1.0",
+    "builtin-baseline": "c82f74667287d3dc386bce81e44964370c91a289",
+    "dependencies": [
+        { "name": "grpc",            "version>=": "1.65.5" },
+        { "name": "protobuf",        "version>=": "5.27.1" },
+        { "name": "librdkafka",      "version>=": "2.4.0"  },
+        { "name": "fmt",             "version>=": "10.2.1" },
+        { "name": "spdlog",          "version>=": "1.14.1" },
+        { "name": "gtest",           "version>=": "1.14.0" },
+        { "name": "benchmark",       "version>=": "1.8.4"  },
+        { "name": "hdrhistogram-c",  "version>=": "0.11.8" },
+        { "name": "prometheus-cpp",  "version>=": "1.2.4"  }
+    ]
+}
