@@ -48,7 +48,7 @@ target_link_libraries(matching_engine PRIVATE engine_lib)
 
 # ── Tests ────────────────────────────────────────────────────────────────────
 enable_testing()
-add_executable(engine_tests tests/smoke_test.cpp)
+add_executable(engine_tests tests/smoke_test.cpp tests/runtime_test.cpp)
 target_link_libraries(engine_tests PRIVATE engine_lib GTest::gtest_main)
 include(GoogleTest)
 gtest_discover_tests(engine_tests)
