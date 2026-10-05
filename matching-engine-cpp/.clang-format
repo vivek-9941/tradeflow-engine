@@ -1,0 +1,17 @@
+---
+Language: Cpp
+BasedOnStyle: Google
+ColumnLimit: 100
+IndentWidth: 4
+AccessModifierOffset: -4
+AllowShortFunctionsOnASingleLine: Empty
+BreakBeforeBraces: Attach
+PointerAlignment: Left
+DerivePointerAlignment: false
+IncludeBlocks: Regroup
+SortIncludes: CaseSensitive
+AlignAfterOpenBracket: Align
+BinPackParameters: false
+BinPackArguments: false
+SpaceAfterCStyleCast: false
+SpacesBeforeTrailingComments: 2
