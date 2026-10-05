@@ -83,9 +83,9 @@ $commit = git rev-parse --short HEAD
 |-----------|------------|---------------|---------|
 | Mixed Workload Replay | N/A | N/A | N/A |
 
-## 2. C++ Latency Distribution (Open-Loop)
+## 2. C++ Latency Distribution (Open-Loop, Async Runtime)
 
-*Measured via HdrHistogram capturing coordinated omission (100k cmds/sec intended rate).*
+*Measured via HdrHistogram capturing coordinated omission (100k cmds/sec intended rate) through the SPSC/MPSC queues and Shard threads.*
 
 | Percentile | Latency (ns) |
 |------------|--------------|

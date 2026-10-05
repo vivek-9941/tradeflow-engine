@@ -9,7 +9,7 @@
 - **C++ Flags**: -O3, LTO, -fno-omit-frame-pointer
 - **JVM**: java version "23.0.2" 2025-01-21
 - **JVM Flags**: -Xms2G -Xmx2G -XX:+UseG1GC
-- **Commit**: f0d3d53
+- **Commit**: 5b02365
 
 ## 1. Microbenchmarks (Google Benchmark vs JMH)
 
@@ -19,9 +19,9 @@
 |-----------|------------|---------------|---------|
 | Mixed Workload Replay | N/A | N/A | N/A |
 
-## 2. C++ Latency Distribution (Open-Loop)
+## 2. C++ Latency Distribution (Open-Loop, Async Runtime)
 
-*Measured via HdrHistogram capturing coordinated omission (100k cmds/sec intended rate).*
+*Measured via HdrHistogram capturing coordinated omission (100k cmds/sec intended rate) through the SPSC/MPSC queues and Shard threads.*
 
 | Percentile | Latency (ns) |
 |------------|--------------|
