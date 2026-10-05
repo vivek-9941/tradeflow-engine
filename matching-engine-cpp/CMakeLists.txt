@@ -36,9 +36,9 @@ endif()
 find_package(GTest CONFIG REQUIRED)
 find_package(benchmark CONFIG REQUIRED)
 
-# ── Source library (empty for now — skeleton only) ───────────────────────────
-add_library(engine_lib INTERFACE)
-target_include_directories(engine_lib INTERFACE
+# ── Source library ───────────────────────────────────────────────────────────
+add_library(engine_lib STATIC src/order_book.cpp)
+target_include_directories(engine_lib PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
