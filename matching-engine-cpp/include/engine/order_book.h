@@ -17,6 +17,19 @@ public:
     MatchResult Submit(const NewOrderCmd& cmd, EventSink& sink);
     bool Cancel(std::string_view order_id, uint64_t ts_ns, EventSink& sink);
 
+    struct LevelInfo {
+        Price price;
+        Qty qty;
+        uint32_t order_count;
+    };
+    
+    struct DepthInfo {
+        std::vector<LevelInfo> bids;
+        std::vector<LevelInfo> asks;
+    };
+    
+    DepthInfo GetDepth(size_t top_n) const;
+
 private:
     // Core helpers
     uint32_t PriceToIndex(Price price) const;

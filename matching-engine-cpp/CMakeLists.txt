@@ -37,7 +37,7 @@ find_package(GTest CONFIG REQUIRED)
 find_package(benchmark CONFIG REQUIRED)
 
 # ── Source library ───────────────────────────────────────────────────────────
-add_library(engine_lib STATIC src/order_book.cpp)
+add_library(engine_lib STATIC src/order_book.cpp src/shard.cpp)
 target_include_directories(engine_lib PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
