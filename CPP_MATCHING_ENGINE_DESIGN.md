@@ -2,6 +2,8 @@
 
 We are rewriting the matching engine from Java to C++ to improve performance and predictability. The following list outlines the primary design choices and architectural shifts for the new C++ matching engine service.
 
+![Architecture Design](./docs/Gemini_Generated_Image_y77j7wy77j7wy77j.png)
+
 ## Threading
 * **Shard-based Concurrency**: One writer thread per symbol shard.
 * **Communication**: Lock-free queues are used between threads.

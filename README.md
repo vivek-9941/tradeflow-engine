@@ -5,6 +5,12 @@ TradeFlow is an open-source distributed trade orchestration and matching-engine 
 > **Note:** TradeFlow is a simulation/research/engineering project. It is not designed to be production-ready out-of-the-box. It is a control system that ensures safe, parallel execution of dependent financial validations before routing orders to a simulated exchange.
 
 ---
+![Architecture Design](./docs/Gemini_Generated_Image_y77j7wy77j7wy77j.png)
+
+## 🎥 Project Demo
+**▶️ [Watch the full demo on YouTube](https://youtu.be/tH3SyPzs-Cw)**
+
+---
 
 ## Why TradeFlow exists
 TradeFlow was built to demonstrate correctness under concurrency — the core problem every real trading system solves. It implements real-world fintech patterns such as parallel DAG-based pre-trade validation, circuit breakers, dead letter queues, idempotency, and high-throughput order matching, making it an excellent learning and research resource for distributed systems engineers.
