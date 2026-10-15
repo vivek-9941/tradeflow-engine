@@ -12,11 +12,24 @@ Thank you for your interest in contributing to TradeFlow! This is an open-source
 ## Local Setup
 
 ### 1. Fork and Clone
+
 ```bash
 git clone https://github.com/<your-username>/tradeflow-engine.git
 cd tradeflow-engine
 cp .env.example .env
 ```
+
+Edit `.env` and configure the following variables before starting the services:
+
+- `MYSQL_ROOT_PASSWORD`: MySQL root password.
+- `MYSQL_PASSWORD`: Password used by the application services to connect to MySQL. For the current local setup, set it to the same value as `MYSQL_ROOT_PASSWORD`.
+- `MYSQL_DATABASE`: Database name (defaults to `tradedb`).
+- `GRAFANA_ADMIN_USER`: Grafana administrator username.
+- `GRAFANA_ADMIN_PASSWORD`: Grafana administrator password.
+
+When running Spring Boot services directly on your machine rather than through Docker Compose, configure the required environment variables in your terminal or IDE run configuration. In particular, set `MYSQL_PASSWORD` to the same password as `MYSQL_ROOT_PASSWORD` for the current local setup. Docker Compose automatically reads `.env` for variable substitution, but Spring Boot does not load it automatically.
+
+Use your own local credentials; the values in `.env.example` are placeholders. Never commit `.env` or share your credentials.
 
 ### 2. Start Infrastructure
 ```bash
