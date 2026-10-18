@@ -3,12 +3,31 @@ package org.vivek.marginservice.service;
 import io.grpc.stub.StreamObserver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.vivek.commonmodule.model.CancellationEvent;
 import org.vivek.commonmodule.model.TradeExecution;
+import org.vivek.marginservice.entity.MarginAccount;
+import org.vivek.marginservice.entity.OrderReservation;
+import org.vivek.marginservice.repository.MarginAccountRepository;
+import org.vivek.marginservice.repository.OrderReservationRepository;
 import org.vivek.trade.margin.grpc.ValidationRequest;
 import org.vivek.trade.margin.grpc.ValidationResponse;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.quality.Strictness;
 
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.when;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -16,14 +35,51 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class MarginServiceImplTest {
 
+    @Mock
+    private MarginAccountRepository marginAccountRepository;
+
+    @Mock
+    private OrderReservationRepository orderReservationRepository;
+
+    @InjectMocks
     private MarginServiceImpl marginService;
+
+    private final Map<String, MarginAccount> accounts = new HashMap<>();
+    private final Map<String, OrderReservation> reservations = new HashMap<>();
 
     @BeforeEach
     void setUp() {
-        marginService = new MarginServiceImpl();
-        marginService.init();
+        accounts.clear();
+        reservations.clear();
+        accounts.put("U1", account("U1", 100000.0d, 150000.0d));
+        accounts.put("U2", account("U2", 250000.0d, 0.0d));
+        accounts.put("U3", account("U3", 50000.0d, 0.0d));
+
+        when(marginAccountRepository.findById(anyString())).thenAnswer(invocation ->
+                Optional.ofNullable(accounts.get(invocation.getArgument(0))));
+        when(marginAccountRepository.save(any(MarginAccount.class))).thenAnswer(invocation -> {
+            MarginAccount account = invocation.getArgument(0);
+            accounts.put(account.getUserId(), account);
+            return account;
+        });
+        when(orderReservationRepository.findByOrderId(anyString())).thenAnswer(invocation ->
+                Optional.ofNullable(reservations.get(invocation.getArgument(0))));
+        when(orderReservationRepository.save(any(OrderReservation.class))).thenAnswer(invocation -> {
+            OrderReservation reservation = invocation.getArgument(0);
+            reservations.put(reservation.getOrderId(), reservation);
+            return reservation;
+        });
+        doAnswer(invocation -> reservations.remove(invocation.getArgument(0)))
+                .when(orderReservationRepository).deleteByOrderId(anyString());
+    }
+
+    private static MarginAccount account(String userId, double cashBalance, double holdingsValue) {
+        return new MarginAccount(userId, BigDecimal.valueOf(cashBalance),
+                BigDecimal.valueOf(holdingsValue), BigDecimal.ZERO, Instant.now());
     }
 
     @Test

@@ -52,6 +52,7 @@ import org.springframework.kafka.support.serializer.JsonSerializer;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
@@ -61,8 +62,17 @@ import org.vivek.commonmodule.model.OrderSide;
 import org.vivek.commonmodule.model.OrderStatus;
 import org.vivek.commonmodule.model.OrderType;
 import org.vivek.commonmodule.model.TradeExecution;
+import org.vivek.ledgerservice.entity.LedgerEntryEntity;
+import org.vivek.ledgerservice.entity.ProcessedEvent;
+import org.vivek.ledgerservice.entity.UserBalance;
+import org.vivek.ledgerservice.entity.UserHolding;
+import org.vivek.ledgerservice.entity.UserHoldingId;
 import org.vivek.ledgerservice.LedgerConsumer;
-import org.vivek.matchingengine.orderbook.OrderBook;
+import org.vivek.ledgerservice.repository.LedgerEntryRepository;
+import org.vivek.ledgerservice.repository.ProcessedEventRepository;
+import org.vivek.ledgerservice.repository.UserBalanceRepository;
+import org.vivek.ledgerservice.repository.UserHoldingRepository;
+import org.vivek.matchingengine.orderbook.SymbolOrderBook;
 import org.vivek.order.client.MatchingEngineClient;
 import org.vivek.order.client.MatchingEngineResponse;
 import org.vivek.order.repository.OrderRepository;
@@ -80,8 +90,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -94,11 +106,16 @@ import org.springframework.util.backoff.FixedBackOff;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @Testcontainers
 @SpringBootTest(classes = OrderFlowIntegrationTest.IntegrationTestConfig.class, webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @TestPropertySource(properties = {
         "spring.main.allow-bean-definition-overriding=true",
+        "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration",
         "spring.kafka.consumer.auto-offset-reset=earliest",
         "spring.kafka.consumer.group-id=ledger-it-group",
         "kafka.consumer.topic=trade-executed",
@@ -147,7 +164,10 @@ class OrderFlowIntegrationTest {
     private OrderService orderService;
 
     @Autowired
-    private OrderBook orderBook;
+    private SymbolOrderBook orderBook;
+
+    @Autowired
+    private InMemoryLedger inMemoryLedger;
 
     @Autowired
     private LedgerConsumer ledgerConsumer;
@@ -162,7 +182,7 @@ class OrderFlowIntegrationTest {
     void resetState() {
         orderRepository.clearAll();
         resetOrderBook(orderBook);
-        resetLedger(ledgerConsumer);
+        inMemoryLedger.reset();
 
         matchingEngineClient.resetRoutingGate();
 
@@ -395,12 +415,12 @@ class OrderFlowIntegrationTest {
                 .build();
     }
 
-    private static void resetOrderBook(OrderBook orderBook) {
+    private static void resetOrderBook(SymbolOrderBook orderBook) {
         clearMapField(orderBook, "buyOrders");
         clearMapField(orderBook, "sellOrders");
     }
 
-    private static boolean hasBuyOrderInBook(OrderBook orderBook, String orderId) {
+    private static boolean hasBuyOrderInBook(SymbolOrderBook orderBook, String orderId) {
         Object buyOrders = readField(orderBook, "buyOrders");
         if (!(buyOrders instanceof Map<?, ?> levels)) {
             return false;
@@ -419,24 +439,10 @@ class OrderFlowIntegrationTest {
         return false;
     }
 
-    private static void resetLedger(LedgerConsumer ledgerConsumer) {
-        clearMapField(ledgerConsumer, "userBalances");
-        clearMapField(ledgerConsumer, "reservedMarginByOrder");
-        clearCollectionField(ledgerConsumer, "processedTradeIds");
-        clearCollectionField(ledgerConsumer, "processedCancelledOrders");
-    }
-
     private static void clearMapField(Object target, String fieldName) {
         Object value = readField(target, fieldName);
         if (value instanceof Map<?, ?> map) {
             map.clear();
-        }
-    }
-
-    private static void clearCollectionField(Object target, String fieldName) {
-        Object value = readField(target, fieldName);
-        if (value instanceof Set<?> set) {
-            set.clear();
         }
     }
 
@@ -669,15 +675,16 @@ class OrderFlowIntegrationTest {
     }
 
     static class InProcessMatchingEngineClient extends MatchingEngineClient {
-        private final OrderBook orderBook;
+        private final SymbolOrderBook orderBook;
         private final KafkaTemplate<String, TradeExecution> tradeKafkaTemplate;
         private final KafkaTemplate<String, CancellationEvent> cancellationKafkaTemplate;
 
         private volatile CountDownLatch routingGate = new CountDownLatch(0);
 
-        InProcessMatchingEngineClient(OrderBook orderBook,
+        InProcessMatchingEngineClient(SymbolOrderBook orderBook,
                                       KafkaTemplate<String, TradeExecution> tradeKafkaTemplate,
                                       KafkaTemplate<String, CancellationEvent> cancellationKafkaTemplate) {
+            super("http://localhost:8081");
             this.orderBook = orderBook;
             this.tradeKafkaTemplate = tradeKafkaTemplate;
             this.cancellationKafkaTemplate = cancellationKafkaTemplate;
@@ -746,6 +753,55 @@ class OrderFlowIntegrationTest {
         }
     }
 
+    static class InMemoryLedger {
+        final Map<String, UserBalance> balances = new ConcurrentHashMap<>();
+        final Map<UserHoldingId, UserHolding> holdings = new ConcurrentHashMap<>();
+        final Set<String> processedEvents = ConcurrentHashMap.newKeySet();
+        final UserBalanceRepository userBalanceRepository = mock(UserBalanceRepository.class);
+        final UserHoldingRepository userHoldingRepository = mock(UserHoldingRepository.class);
+        final LedgerEntryRepository ledgerEntryRepository = mock(LedgerEntryRepository.class);
+        final ProcessedEventRepository processedEventRepository = mock(ProcessedEventRepository.class);
+
+        InMemoryLedger() {
+            when(userBalanceRepository.findById(anyString())).thenAnswer(invocation ->
+                    Optional.ofNullable(balances.get(invocation.getArgument(0))));
+            when(userBalanceRepository.save(any(UserBalance.class))).thenAnswer(invocation -> {
+                UserBalance balance = invocation.getArgument(0);
+                balances.put(balance.getUserId(), balance);
+                return balance;
+            });
+            when(userHoldingRepository.findById(any(UserHoldingId.class))).thenAnswer(invocation ->
+                    Optional.ofNullable(holdings.get(invocation.getArgument(0))));
+            when(userHoldingRepository.save(any(UserHolding.class))).thenAnswer(invocation -> {
+                UserHolding holding = invocation.getArgument(0);
+                holdings.put(holding.getId(), holding);
+                return holding;
+            });
+            when(userHoldingRepository.findByIdUserId(anyString())).thenAnswer(invocation -> {
+                String userId = invocation.getArgument(0);
+                return holdings.values().stream()
+                        .filter(holding -> userId.equals(holding.getId().getUserId()))
+                        .toList();
+            });
+            when(processedEventRepository.existsByEventIdAndEventType(anyString(), anyString()))
+                    .thenAnswer(invocation -> processedEvents.contains(
+                            invocation.getArgument(1) + ":" + invocation.getArgument(0)));
+            when(processedEventRepository.save(any(ProcessedEvent.class))).thenAnswer(invocation -> {
+                ProcessedEvent event = invocation.getArgument(0);
+                processedEvents.add(event.getEventType() + ":" + event.getEventId());
+                return event;
+            });
+            when(ledgerEntryRepository.save(any(LedgerEntryEntity.class)))
+                    .thenAnswer(invocation -> invocation.getArgument(0));
+        }
+
+        void reset() {
+            balances.clear();
+            holdings.clear();
+            processedEvents.clear();
+        }
+    }
+
     @SpringBootConfiguration
     @org.springframework.boot.autoconfigure.EnableAutoConfiguration
     @Import({
@@ -759,18 +815,28 @@ class OrderFlowIntegrationTest {
         }
 
         @Bean
-        OrderBook orderBook() {
-            return new OrderBook();
+        SymbolOrderBook orderBook() {
+            return new SymbolOrderBook("INFY");
         }
 
         @Bean
-        LedgerConsumer ledgerConsumer() {
-            return new LedgerConsumer();
+        InMemoryLedger inMemoryLedger() {
+            return new InMemoryLedger();
+        }
+
+        @Bean
+        LedgerConsumer ledgerConsumer(InMemoryLedger state) {
+            LedgerConsumer consumer = new LedgerConsumer();
+            ReflectionTestUtils.setField(consumer, "userBalanceRepository", state.userBalanceRepository);
+            ReflectionTestUtils.setField(consumer, "userHoldingRepository", state.userHoldingRepository);
+            ReflectionTestUtils.setField(consumer, "ledgerEntryRepository", state.ledgerEntryRepository);
+            ReflectionTestUtils.setField(consumer, "processedEventRepository", state.processedEventRepository);
+            return consumer;
         }
 
         @Bean
         InProcessMatchingEngineClient inProcessMatchingEngineClient(
-                OrderBook orderBook,
+                SymbolOrderBook orderBook,
                 KafkaTemplate<String, TradeExecution> tradeKafkaTemplate,
                 KafkaTemplate<String, CancellationEvent> cancellationKafkaTemplate
         ) {
