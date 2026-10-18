@@ -20,7 +20,9 @@ enum class Side : uint8_t {
 
 enum class OrderType : uint8_t {
     LIMIT,
+    MARKET,
     IOC,
+    FOK,
     GTD
 };
 
