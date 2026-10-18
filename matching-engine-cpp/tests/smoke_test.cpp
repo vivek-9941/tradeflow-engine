@@ -54,12 +54,12 @@ protected:
 };
 
 TEST_F(OrderBookTest, TableDriven_SimpleMatch) {
-    NewOrderCmd sell{"sym1", "O1", "U1", Side::SELL, OrderType::LIMIT, 100000, 100, 1, 1, false};
+    NewOrderCmd sell{0, "O1", "U1", Side::SELL, OrderType::LIMIT, 100000, 100, 1, 1, false};
     auto r1 = book_.Submit(sell, sink_);
     EXPECT_EQ(r1.status, OrderStatus::PENDING);
     EXPECT_EQ(r1.filled_qty, 0);
 
-    NewOrderCmd buy{"sym1", "O2", "U2", Side::BUY, OrderType::LIMIT, 100000, 100, 2, 2, false};
+    NewOrderCmd buy{0, "O2", "U2", Side::BUY, OrderType::LIMIT, 100000, 100, 2, 2, false};
     auto r2 = book_.Submit(buy, sink_);
     EXPECT_EQ(r2.status, OrderStatus::FULLY_FILLED);
     EXPECT_EQ(r2.filled_qty, 100);
@@ -68,10 +68,10 @@ TEST_F(OrderBookTest, TableDriven_SimpleMatch) {
 }
 
 TEST_F(OrderBookTest, TableDriven_NoMatchWhenBelowAsk) {
-    NewOrderCmd sell{"sym1", "O1", "U1", Side::SELL, OrderType::LIMIT, 100050, 100, 1, 1, false};
+    NewOrderCmd sell{0, "O1", "U1", Side::SELL, OrderType::LIMIT, 100050, 100, 1, 1, false};
     book_.Submit(sell, sink_);
     
-    NewOrderCmd buy{"sym1", "O2", "U2", Side::BUY, OrderType::LIMIT, 100000, 100, 2, 2, false};
+    NewOrderCmd buy{0, "O2", "U2", Side::BUY, OrderType::LIMIT, 100000, 100, 2, 2, false};
     auto r2 = book_.Submit(buy, sink_);
     EXPECT_EQ(r2.status, OrderStatus::PENDING);
     EXPECT_EQ(r2.filled_qty, 0);
@@ -79,10 +79,10 @@ TEST_F(OrderBookTest, TableDriven_NoMatchWhenBelowAsk) {
 }
 
 TEST_F(OrderBookTest, TableDriven_IOCRemainderCancelled) {
-    NewOrderCmd sell{"sym1", "O1", "U1", Side::SELL, OrderType::LIMIT, 100000, 50, 1, 1, false};
+    NewOrderCmd sell{0, "O1", "U1", Side::SELL, OrderType::LIMIT, 100000, 50, 1, 1, false};
     book_.Submit(sell, sink_);
     
-    NewOrderCmd buy{"sym1", "O2", "U2", Side::BUY, OrderType::IOC, 100000, 100, 2, 2, false};
+    NewOrderCmd buy{0, "O2", "U2", Side::BUY, OrderType::IOC, 100000, 100, 2, 2, false};
     auto r2 = book_.Submit(buy, sink_);
     EXPECT_EQ(r2.status, OrderStatus::PARTIALLY_FILLED);
     EXPECT_EQ(r2.filled_qty, 50);
@@ -92,7 +92,7 @@ TEST_F(OrderBookTest, TableDriven_IOCRemainderCancelled) {
 }
 
 TEST_F(OrderBookTest, TableDriven_DuplicateReject) {
-    NewOrderCmd buy{"sym1", "O1", "U1", Side::BUY, OrderType::LIMIT, 100000, 100, 1, 1, false};
+    NewOrderCmd buy{0, "O1", "U1", Side::BUY, OrderType::LIMIT, 100000, 100, 1, 1, false};
     book_.Submit(buy, sink_);
     
     auto r2 = book_.Submit(buy, sink_); // duplicate
@@ -101,8 +101,8 @@ TEST_F(OrderBookTest, TableDriven_DuplicateReject) {
 }
 
 TEST_F(OrderBookTest, ZeroAllocationHotPath) {
-    NewOrderCmd sell{"sym1", "O1", "U1", Side::SELL, OrderType::LIMIT, 100000, 100, 1, 1, false};
-    NewOrderCmd buy{"sym1", "O2", "U2", Side::BUY, OrderType::LIMIT, 100000, 100, 2, 2, false};
+    NewOrderCmd sell{0, "O1", "U1", Side::SELL, OrderType::LIMIT, 100000, 100, 1, 1, false};
+    NewOrderCmd buy{0, "O2", "U2", Side::BUY, OrderType::LIMIT, 100000, 100, 2, 2, false};
 
     // Warm up
     book_.Submit(sell, sink_);
@@ -120,8 +120,8 @@ TEST_F(OrderBookTest, ZeroAllocationHotPath) {
     g_alloc_count = 0;
     g_track_allocs = true;
 
-    NewOrderCmd sell2{"sym1", "O3", "U1", Side::SELL, OrderType::LIMIT, 100000, 100, 3, 3, false};
-    NewOrderCmd buy2{"sym1", "O4", "U2", Side::BUY, OrderType::LIMIT, 100000, 100, 4, 4, false};
+    NewOrderCmd sell2{0, "O3", "U1", Side::SELL, OrderType::LIMIT, 100000, 100, 3, 3, false};
+    NewOrderCmd buy2{0, "O4", "U2", Side::BUY, OrderType::LIMIT, 100000, 100, 4, 4, false};
     
     book_.Submit(sell2, no_alloc_sink);
     book_.Submit(buy2, no_alloc_sink);
