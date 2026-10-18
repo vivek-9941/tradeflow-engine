@@ -20,6 +20,7 @@ struct RuntimeCmd {
     Qty qty;
     bool stp;               // Self-Trade Prevention
 
+    uint64_t ts_ns;         // Engine-assigned timestamp (set by shard loop)
     uint64_t ingress_ts_ns; // When the gRPC layer received it
     uint32_t reply_handle;  // Index into a pre-allocated reply-slot table to signal the waiting thread
 };
