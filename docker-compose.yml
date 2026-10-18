@@ -1,10 +1,7 @@
-version: "3.9"
-
 services:
   # ─── Infrastructure ────────────────────────────────────────────
   mysql:
     image: mysql:8.0
-    container_name: trade-mysql
     ports:
       - "3306:3306"
     environment:
@@ -22,7 +19,6 @@ services:
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
-    container_name: zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
@@ -38,7 +34,6 @@ services:
 
   kafka:
     image: confluentinc/cp-kafka:7.4.0
-    container_name: kafka
     depends_on:
       zookeeper:
         condition: service_healthy
@@ -62,7 +57,6 @@ services:
 
   kafka-topics-init:
     image: confluentinc/cp-kafka:7.4.0
-    container_name: kafka-topics-init
     depends_on:
       kafka:
         condition: service_healthy
@@ -85,12 +79,11 @@ services:
     build:
       context: .
       dockerfile: risk-service/Dockerfile
-    container_name: risk-service
     ports:
       - "9091:9091"
     environment:
       GRPC_SERVER_PORT: 9091
-      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     networks:
       - trade-network
 
@@ -98,7 +91,6 @@ services:
     build:
       context: .
       dockerfile: margin-service/Dockerfile
-    container_name: margin-service
     ports:
       - "9094:9094"
     depends_on:
@@ -106,7 +98,7 @@ services:
         condition: service_healthy
     environment:
       GRPC_SERVER_PORT: 9094
-      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       MYSQL_HOST: mysql
       MYSQL_USER: root
       MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
@@ -117,12 +109,11 @@ services:
     build:
       context: .
       dockerfile: compliance-service/Dockerfile
-    container_name: compliance-service
     ports:
       - "9093:9093"
     environment:
       GRPC_SERVER_PORT: 9093
-      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     networks:
       - trade-network
 
@@ -131,7 +122,6 @@ services:
     build:
       context: .
       dockerfile: matching-engine/Dockerfile
-    container_name: matching-engine
     ports:
       - "8081:8081"
     depends_on:
@@ -139,7 +129,7 @@ services:
         condition: service_healthy
     environment:
       SERVER_PORT: 8081
-      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     networks:
       - trade-network
 
@@ -148,7 +138,6 @@ services:
     build:
       context: .
       dockerfile: market-data-service/Dockerfile
-    container_name: market-data-service
     ports:
       - "8084:8084"
     depends_on:
@@ -156,7 +145,7 @@ services:
         condition: service_healthy
     environment:
       SERVER_PORT: 8084
-      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     networks:
       - trade-network
 
@@ -165,7 +154,6 @@ services:
     build:
       context: .
       dockerfile: order-service/Dockerfile
-    container_name: order-service
     ports:
       - "8080:8080"
     depends_on:
@@ -181,17 +169,16 @@ services:
         condition: service_started
     environment:
       SERVER_PORT: 8080
-      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
-      RISK_HOST: ${RISK_HOST}
-      MARGIN_HOST: ${MARGIN_HOST}
-      COMPLIANCE_HOST: ${COMPLIANCE_HOST}
-      MATCHING_ENGINE_HOST: ${MATCHING_ENGINE_HOST}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      RISK_HOST: risk-service
+      MARGIN_HOST: margin-service
+      COMPLIANCE_HOST: compliance-service
+      MATCHING_ENGINE_HOST: matching-engine
     networks:
       - trade-network
 
   prometheus:
     image: prom/prometheus:v2.51.0
-    container_name: prometheus
     ports:
       - "9090:9090"
     volumes:
@@ -201,7 +188,6 @@ services:
 
   grafana:
     image: grafana/grafana:10.4.0
-    container_name: grafana
     ports:
       - "3000:3000"
     environment:
