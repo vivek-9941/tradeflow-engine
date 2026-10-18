@@ -1,5 +1,6 @@
 #include "engine/order_book.h"
 #include <charconv>
+#include <cinttypes>
 #include <algorithm>
 
 namespace engine {
@@ -119,7 +120,7 @@ void OrderBook::FormatTradeId(uint64_t seq, char* out_buf, size_t out_len) const
     // TRD-<shard>-<seq> -> For simplicity, using config_.symbol_idx or just TRD-S-seq
     // Since we don't store shard name, just use TRD-0-seq
     std::memset(out_buf, 0, out_len);
-    snprintf(out_buf, out_len, "TRD-0-%llu", (unsigned long long)seq);
+    snprintf(out_buf, out_len, "TRD-0-" PRIu64, seq);
 }
 
 void OrderBook::MatchBuy(const NewOrderCmd& cmd, MatchResult& result, EventSink& sink) {
