@@ -12,7 +12,7 @@ OrderBook::OrderBook(const OrderBookConfig& config)
       buy_bitmap_(4096),
       sell_bitmap_(4096) {
 
-    Price band = (config.reference_price_paise * config.band_percent);
+    Price band = static_cast<Price>(config.reference_price_paise * config.band_percent);
     min_price_ = config.reference_price_paise - band;
     max_price_ = config.reference_price_paise + band;
     
