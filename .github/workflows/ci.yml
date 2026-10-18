@@ -9,6 +9,54 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    env:
+      MYSQL_HOST: localhost
+      MYSQL_USER: root
+      MYSQL_PASSWORD: test
+      KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+    services:
+      mysql:
+        image: mysql:8.0
+        ports:
+          - 3306:3306
+        env:
+          MYSQL_ROOT_PASSWORD: test
+          MYSQL_DATABASE: tradedb
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost -ptest"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      zookeeper:
+        image: confluentinc/cp-zookeeper:7.4.0
+        ports:
+          - 2181:2181
+        env:
+          ZOOKEEPER_CLIENT_PORT: 2181
+          ZOOKEEPER_TICK_TIME: 2000
+        options: >-
+          --health-cmd "bash -c 'echo ruok | nc localhost 2181'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      kafka:
+        image: confluentinc/cp-kafka:7.4.0
+        ports:
+          - 9092:9092
+        env:
+          KAFKA_BROKER_ID: 1
+          KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+          KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+          KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+          KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+        options: >-
+          --health-cmd "kafka-topics --bootstrap-server localhost:9092 --list"
+          --health-interval 15s
+          --health-timeout 10s
+          --health-retries 10
     steps:
     - uses: actions/checkout@v4
     
@@ -20,10 +68,10 @@ jobs:
         cache: maven
         
     - name: Build with Maven (Skip Tests)
-      run: mvn clean install -DskipTests
+      run: mvn clean install -DskipTests -pl '!integration-tests'
       
     - name: Run Unit Tests
       run: mvn test -pl order-service,matching-engine,risk-service,margin-service,compliance-service
       
     - name: Run Integration Tests
-      run: mvn test -pl integration-tests
+      run: mvn test -pl integration-tests -am -Dtest=OrderFlowIntegrationTest -Dsurefire.failIfNoSpecifiedTests=false

@@ -73,7 +73,7 @@ public class OrderBookBenchmark {
 
     @Setup(Level.Invocation)
     public void setupInvocation() {
-        orderBook = new SymbolOrderBook("sym1", null, null); // Provide null for Kafka templates as we only want to measure core matching
+        orderBook = new SymbolOrderBook("sym1");
         commandIndex = 0;
     }
 
@@ -91,7 +91,7 @@ public class OrderBookBenchmark {
             order.setOrderId(cmd.orderId);
             order.setUserId(cmd.userId);
             order.setSymbol("sym1");
-            order.setOrderSide(cmd.side);
+            order.setSide(cmd.side);
             order.setOrderType(cmd.type);
             order.setPrice(cmd.price);
             order.setQuantity(cmd.qty);
