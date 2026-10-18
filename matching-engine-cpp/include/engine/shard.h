@@ -28,18 +28,18 @@ struct ShardConfig {
 
 // POD for pushing level snapshots
 struct LevelSnapshot {
-    Price price;
-    Qty qty;
-    uint32_t order_count;
+    Price price = 0;
+    Qty qty = 0;
+    uint32_t order_count = 0;
 };
 
 struct DepthSnapshot {
-    uint32_t symbol_idx;
-    uint64_t ts_ns;
-    uint32_t bid_count;
-    uint32_t ask_count;
-    LevelSnapshot bids[10];
-    LevelSnapshot asks[10];
+    uint32_t symbol_idx = 0;
+    uint64_t ts_ns = 0;
+    uint32_t bid_count = 0;
+    uint32_t ask_count = 0;
+    LevelSnapshot bids[10] = {};
+    LevelSnapshot asks[10] = {};
 };
 
 struct RuntimeEvent {
